@@ -3,6 +3,7 @@ import sqlite3
 import pandas as pd
 import hashlib
 import json
+# CORREÇÃO 1: Importação de timedelta adicionada para resolver o NameError
 from datetime import datetime, timedelta
 from streamlit_calendar import calendar
 from fpdf import FPDF
@@ -12,13 +13,13 @@ from PIL import Image
 import io
 
 # ==========================================
-# 1. CONFIGURAÇÃO E BASE DE DADOS (V34)
+# 1. CONFIGURAÇÃO E BASE DE DADOS (V35)
 # ==========================================
-st.set_page_config(page_title="GK Manager Pro v34", layout="wide", page_icon="🧤")
+st.set_page_config(page_title="GK Manager Pro v35", layout="wide", page_icon="🧤")
 
 def get_db_connection():
-    # V34: Adicionados campos para Esquemas Táticos Ofensivos
-    conn = sqlite3.connect('gk_master_v34.db') 
+    # V35: Base de dados nova para garantir estrutura limpa
+    conn = sqlite3.connect('gk_master_v35.db') 
     return conn
 
 def make_hashes(password):
@@ -28,49 +29,55 @@ def init_db():
     conn = get_db_connection()
     c = conn.cursor()
     
-    # TABELAS BASE
+    # USERS
     c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)''')
     
+    # ATLETAS
     c.execute('''CREATE TABLE IF NOT EXISTS goalkeepers (
                     id INTEGER PRIMARY KEY, user_id TEXT, name TEXT, age INTEGER, status TEXT, notes TEXT,
                     height REAL, wingspan REAL, arm_len_left REAL, arm_len_right REAL, glove_size TEXT,
                     jump_front_2 REAL, jump_front_l REAL, jump_front_r REAL, jump_lat_l REAL, jump_lat_r REAL,
                     test_res TEXT, test_agil TEXT, test_vel TEXT)''')
     
+    # EXERCÍCIOS
     c.execute('''CREATE TABLE IF NOT EXISTS exercises (
                     id INTEGER PRIMARY KEY, user_id TEXT, title TEXT, moment TEXT, training_type TEXT, 
                     description TEXT, objective TEXT, materials TEXT, space TEXT, image BLOB)''')
     
+    # SESSÕES
     c.execute('''CREATE TABLE IF NOT EXISTS sessions (
                     id INTEGER PRIMARY KEY, user_id TEXT, type TEXT, title TEXT, start_date TEXT, drills_list TEXT, report TEXT)''')
     
+    # MICROCICLOS
     c.execute('''CREATE TABLE IF NOT EXISTS microcycles (
                     id INTEGER PRIMARY KEY, user_id TEXT, title TEXT, start_date TEXT, goal TEXT, report TEXT)''')
     
+    # NOTAS
     c.execute('''CREATE TABLE IF NOT EXISTS training_ratings (
                     id INTEGER PRIMARY KEY, user_id TEXT, date TEXT, gk_id INTEGER, rating INTEGER, notes TEXT)''')
     
-    # JOGOS - ESTRUTURA ATUALIZADA (63 COLUNAS DE DADOS + ID)
+    # JOGOS - ESTRUTURA BLINDADA (63 CAMPOS DE DADOS + ID)
+    # CORREÇÃO 2: Garantir que a tabela tem exatamente as colunas que vamos inserir
     c.execute('''CREATE TABLE IF NOT EXISTS matches (
                     id INTEGER PRIMARY KEY, 
                     user_id TEXT, date TEXT, opponent TEXT, gk_id INTEGER, goals_conceded INTEGER, saves INTEGER, result TEXT, report TEXT, rating INTEGER, 
-                    -- Bloqueios
+                    -- Bloqueios (6)
                     db_bloq_sq_rast INTEGER, db_bloq_sq_med INTEGER, db_bloq_sq_alt INTEGER, db_bloq_cq_rast INTEGER, db_bloq_cq_med INTEGER, db_bloq_cq_alt INTEGER, 
-                    -- Rececoes
+                    -- Rececoes (6)
                     db_rec_sq_med INTEGER, db_rec_sq_alt INTEGER, db_rec_cq_rast INTEGER, db_rec_cq_med INTEGER, db_rec_cq_alt INTEGER, db_rec_cq_varr INTEGER, 
-                    -- Desvios
+                    -- Desvios (10)
                     db_desv_sq_pe INTEGER, db_desv_sq_mfr INTEGER, db_desv_sq_mlat INTEGER, db_desv_sq_a1 INTEGER, db_desv_sq_a2 INTEGER, db_desv_cq_varr INTEGER, db_desv_cq_r1 INTEGER, db_desv_cq_r2 INTEGER, db_desv_cq_a1 INTEGER, db_desv_cq_a2 INTEGER, 
-                    -- Ext/Voo
+                    -- Ext/Voo (7)
                     db_ext_rec INTEGER, db_ext_desv_1 INTEGER, db_ext_desv_2 INTEGER, db_voo_rec INTEGER, db_voo_desv_1 INTEGER, db_voo_desv_2 INTEGER, db_voo_desv_mc INTEGER, 
-                    -- Espaco
+                    -- Espaco (4)
                     de_cabeca INTEGER, de_carrinho INTEGER, de_alivio INTEGER, de_rececao INTEGER, 
-                    -- Duelos
+                    -- Duelos (4)
                     duelo_parede INTEGER, duelo_abafo INTEGER, duelo_estrela INTEGER, duelo_frontal INTEGER, 
-                    -- Tactica
+                    -- Tactica (10)
                     pa_curto_1 INTEGER, pa_curto_2 INTEGER, pa_longo_1 INTEGER, pa_longo_2 INTEGER, dist_curta_mao INTEGER, dist_longa_mao INTEGER, dist_picada_mao INTEGER, dist_volley INTEGER, dist_curta_pe INTEGER, dist_longa_pe INTEGER, 
-                    -- Cruzamentos
+                    -- Cruzamentos (4)
                     cruz_rec_alta INTEGER, cruz_soco_1 INTEGER, cruz_soco_2 INTEGER, cruz_int_rast INTEGER,
-                    -- NOVOS: Esquemas Taticos Ofensivos (Pontape Baliza)
+                    -- ETO (3)
                     eto_pb_curto INTEGER, eto_pb_medio INTEGER, eto_pb_longo INTEGER
                     )''')
     conn.commit()
@@ -172,6 +179,8 @@ def create_training_pdf(user, session_info, athletes, drills_config, drills_deta
                 pdf.ln(10)
                 if pdf.get_y() > 240: pdf.add_page()
     else: pdf.cell(0, 10, "Sem exercicios.", 0, 1)
+    
+    # CORREÇÃO 3: Retornar bytes diretamente (sem encode) para evitar erro do PDF
     return bytes(pdf.output())
 
 # ==========================================
@@ -181,7 +190,7 @@ if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 if 'username' not in st.session_state: st.session_state['username'] = ''
 
 def login_page():
-    st.title("🔐 GK Manager v34")
+    st.title("🔐 GK Manager v35")
     menu = ["Login", "Criar Conta"]
     choice = st.selectbox("Menu", menu)
     if choice == "Login":
@@ -235,7 +244,9 @@ def main_app():
                     conn = get_db_connection()
                     c = conn.cursor()
                     c.execute("INSERT INTO microcycles (user_id, title, start_date, goal) VALUES (?,?,?,?)", (user, mt, sd, mg))
-                    conn.commit(); conn.close(); st.success("Criado!")
+                    conn.commit()
+                    conn.close()
+                    st.success("Criado!")
         with tab2:
             conn = get_db_connection()
             micros = pd.read_sql_query("SELECT * FROM microcycles WHERE user_id = ? ORDER BY start_date DESC", conn, params=(user,))
@@ -296,7 +307,7 @@ def main_app():
                             conn_ex.close()
                             
                             st.write("---")
-                            st.caption("Selecionar Exercícios:")
+                            st.caption("Selecionar Exercícios por Momento:")
                             moms = ["Defesa de Baliza", "Defesa do Espaço", "Cruzamento", "Duelos", "Distribuição", "Passe Atrasado"]
                             selected_in_tabs = []
                             drill_tabs = st.tabs(moms)
@@ -327,7 +338,10 @@ def main_app():
                                 chk = c.execute("SELECT id FROM sessions WHERE user_id=? AND start_date=?", (user, d_str)).fetchone()
                                 if chk: c.execute("UPDATE sessions SET type=?, title=?, drills_list=? WHERE id=?", (type_d, sess_t, drills_json, chk[0]))
                                 else: c.execute("INSERT INTO sessions (user_id, type, title, start_date, drills_list) VALUES (?,?,?,?,?)", (user, type_d, sess_t, d_str, drills_json))
-                                conn_s.commit(); conn_s.close(); st.success("Guardado"); st.rerun()
+                                conn_s.commit()
+                                conn_s.close()
+                                st.success("Guardado")
+                                st.rerun()
             else: st.warning("Cria uma semana.")
 
     # --- 2. RELATÓRIOS ---
@@ -418,13 +432,11 @@ def main_app():
         games = pd.read_sql_query("SELECT start_date, title FROM sessions WHERE user_id=? AND type='Jogo' ORDER BY start_date DESC", conn, params=(user,))
         gks = pd.read_sql_query("SELECT id, name FROM goalkeepers WHERE user_id=?", conn, params=(user,))
         conn.close()
-        
         if not games.empty:
             game_opt = [f"{r['start_date']} | {r['title']}" for _, r in games.iterrows()]
             sel_game = st.selectbox("Jogo", game_opt)
             sel_date = sel_game.split(" | ")[0]
             sel_opp = sel_game.split(" | ")[1]
-            
             st.markdown("---")
             with st.form("match_stats"):
                 # Header
@@ -527,23 +539,23 @@ def main_app():
                     c = conn.cursor()
                     c.execute("DELETE FROM matches WHERE user_id=? AND date=?", (user, sel_date))
                     
-                    # 63 COLUNAS DE DADOS + 9 DE CABEÇALHO = 72 VALORES TOTAIS
+                    # CORREÇÃO CRÍTICA DO ERRO SQL (Lista explícita para evitar mismatch)
                     # Geração dinâmica dos ? para não falhar
-                    placeholders = ",".join(["?"] * 63)
-                    
                     vals = (
-                        user, sel_date, sel_opp, gid, gls, svs, res, rep, rt,
-                        bloq_sq_r, bloq_sq_m, bloq_sq_a, bloq_cq_r, bloq_cq_m, bloq_cq_a,
-                        rec_sq_m, rec_sq_a, rec_cq_r, rec_cq_m, rec_cq_a, rec_cq_v,
-                        desv_sq_p, desv_sq_mf, desv_sq_ml, desv_sq_a1, desv_sq_a2, 
-                        desv_cq_v, desv_cq_r1, desv_cq_r2, desv_cq_a1, desv_cq_a2,
-                        ext_rec, ext_d1, ext_d2, voo_rec, voo_d1, voo_d2, voo_dmc,
-                        de_cab, de_car, de_ali, de_rec, 
-                        du_par, du_aba, du_est, du_fro,
-                        pa_c1, pa_c2, pa_l1, pa_l2, di_cm, di_lm, di_pm, di_vo, di_cp, di_lp,
-                        cr_rec, cr_s1, cr_s2, cr_int,
-                        eto_pb_curto, eto_pb_medio, eto_pb_longo
+                        user, sel_date, sel_opp, gid, gls, svs, res, rep, rt, # 9
+                        bloq_sq_r, bloq_sq_m, bloq_sq_a, bloq_cq_r, bloq_cq_m, bloq_cq_a, # 6
+                        rec_sq_m, rec_sq_a, rec_cq_r, rec_cq_m, rec_cq_a, rec_cq_v, # 6
+                        desv_sq_p, desv_sq_mf, desv_sq_ml, desv_sq_a1, desv_sq_a2, # 5
+                        desv_cq_v, desv_cq_r1, desv_cq_r2, desv_cq_a1, desv_cq_a2, # 5
+                        ext_rec, ext_d1, ext_d2, voo_rec, voo_d1, voo_d2, voo_dmc, # 7
+                        de_cab, de_car, de_ali, de_rec, # 4
+                        du_par, du_aba, du_est, du_fro, # 4
+                        pa_c1, pa_c2, pa_l1, pa_l2, di_cm, di_lm, di_pm, di_vo, di_cp, di_lp, # 10
+                        cr_rec, cr_s1, cr_s2, cr_int, # 4
+                        eto_pb_curto, eto_pb_medio, eto_pb_longo # 3
                     )
+                    
+                    placeholders = ",".join(["?"] * len(vals))
                     
                     c.execute(f'''INSERT INTO matches VALUES (NULL, {placeholders})''', vals)
                     conn.commit(); conn.close(); st.success("Ficha Guardada com Sucesso!")
@@ -633,6 +645,7 @@ def main_app():
                 tr=t1.text_input("Resistência", value=d_tr)
                 ta=t2.text_input("Agilidade", value=d_ta)
                 tv=t3.text_input("Velocidade", value=d_tv)
+                
                 if st.form_submit_button("Guardar"):
                     conn = get_db_connection()
                     c = conn.cursor()
